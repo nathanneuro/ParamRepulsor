@@ -207,6 +207,7 @@ class ParamPaCMAP(BaseEstimator):
                 distance=self.distance,
                 verbose=False,
                 random_state=self.seed,  # critical line for reproducibility
+                device=self.device,
             )
             if self.save_pairs:
                 self.pair_neighbors = pair_neighbors

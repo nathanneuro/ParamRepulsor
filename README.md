@@ -11,7 +11,7 @@ cd ParamRepulsor
 pip install .
 ```
 
-Note: this will not install `torch`, as this is highly platform-dependent.
+Note: `torch` is a base dependency but is highly platform-dependent.
 This project provides optionals:
 
 ```bash
@@ -25,10 +25,32 @@ pip install .[mps]    # arm64/aarch64 (Apple M-Series chips)
 This project also supports `uv` (`pip install uv`):
 
 ```bash
-echo "3.11" > .python-version  # supported: [3.9, 3.12)
 uv sync (--extra cpu)  # as appropriate for your system
 uv run pytest
 TORCH_DEVICE=cpu uv run pytest  # disable accelerator
+```
+
+### Using a local checkout from other projects
+
+If you're developing against a local copy of ParamRepulsor, you can point other
+`uv`-managed projects at it:
+
+```bash
+# In your other project's directory:
+uv add parampacmap --editable /path/to/ParamRepulsor
+```
+
+Or add it manually to your other project's `pyproject.toml`:
+
+```toml
+[tool.uv.sources]
+parampacmap = { path = "/path/to/ParamRepulsor", editable = true }
+```
+
+For plain pip, use:
+
+```bash
+pip install -e /path/to/ParamRepulsor
 ```
 
 ## How to use our algorithm
