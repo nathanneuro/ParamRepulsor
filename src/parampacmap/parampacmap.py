@@ -111,6 +111,7 @@ class ParamPaCMAP(BaseEstimator):
         self.verbose = verbose
         self.weight_schedule = weight_schedule
         self.num_workers = num_workers
+        self.dtype = dtype
         self._dtype = dtype
         self._scaler = None
         self._projector = None
@@ -515,6 +516,98 @@ class ParamPaCMAP(BaseEstimator):
         if per_layer:
             return self._inference_per_layer(test_loader)
         return self._inference(test_loader)
+
+    def save(self, path: str) -> None:
+        """Save the trained model to a directory for later use with load()."""
+        import json
+        import pickle
+        from pathlib import Path
+
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+
+        if self.model is None:
+            raise RuntimeError("Cannot save before fit()")
+
+        # Save PyTorch model state dict
+        torch.save(self.model.state_dict(), path / "model.pt")
+
+        # Save preprocessors (PCA projector, scaler)
+        preprocessors = {
+            "projector": self._projector,
+            "scaler": self._scaler,
+        }
+        with open(path / "preprocessors.pkl", "wb") as f:
+            pickle.dump(preprocessors, f)
+
+        # Save config needed to reconstruct the model
+        # Infer input_dims from the first layer's weight shape
+        first_key = next(iter(self.model.state_dict()))
+        first_weight = self.model.state_dict()[first_key]
+        input_dims = first_weight.shape[-1] if len(first_weight.shape) == 2 else first_weight.shape[0]
+
+        config = {
+            "n_components": self.n_components,
+            "model_dict": self.model_dict,
+            "input_dims": input_dims,
+            "n_samples": self.model.n_samples,
+            "is_parametric": self.model.is_parametric,
+            "batch_size": self.batch_size,
+            "data_reshape": self.data_reshape,
+            "num_workers": self.num_workers,
+            "apply_pca": self.apply_pca,
+            "apply_scale": self.apply_scale,
+            "seed": self.seed,
+        }
+        with open(path / "config.json", "w") as f:
+            json.dump(config, f, indent=2)
+
+    @classmethod
+    def load(cls, path: str) -> "ParamPaCMAP":
+        """Load a saved ParamPaCMAP model from a directory."""
+        import json
+        import pickle
+        from pathlib import Path
+
+        path = Path(path)
+
+        with open(path / "config.json") as f:
+            config = json.load(f)
+
+        instance = cls(
+            n_components=config["n_components"],
+            model_dict=config["model_dict"],
+            batch_size=config["batch_size"],
+            data_reshape=config.get("data_reshape"),
+            num_workers=config.get("num_workers", 1),
+            apply_pca=config.get("apply_pca", True),
+            apply_scale=config.get("apply_scale"),
+            seed=config.get("seed"),
+        )
+
+        # Reconstruct the PyTorch model
+        instance.model = (
+            module.ParamPaCMAP(
+                input_dims=config["input_dims"],
+                output_dims=config["n_components"],
+                model_dict=config["model_dict"],
+                n_samples=config["n_samples"],
+                is_parametric=config.get("is_parametric", True),
+            )
+            .to(instance.device)
+            .to(instance._dtype)
+        )
+        state_dict = torch.load(path / "model.pt", map_location=instance.device, weights_only=True)
+        instance.model.load_state_dict(state_dict)
+        instance.model.eval()
+
+        # Restore preprocessors
+        with open(path / "preprocessors.pkl", "rb") as f:
+            preprocessors = pickle.load(f)
+        instance._projector = preprocessors["projector"]
+        instance._scaler = preprocessors["scaler"]
+
+        return instance
 
     def _init_embedding(self, X: np.ndarray) -> None:
         with torch.inference_mode():
