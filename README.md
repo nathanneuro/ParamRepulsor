@@ -53,6 +53,36 @@ For plain pip, use:
 pip install -e /path/to/ParamRepulsor
 ```
 
+## MMAE-Hybrid Autoencoder
+
+This fork adds a hybrid MMAE-PaCMAP autoencoder (`MMAEHybrid`) that combines
+[Manifold-Matching Autoencoders](https://arxiv.org/abs/2603.16568) (Cheret et al., 2026)
+with PaCMAP-style sparse pair sampling and ParamRepulsor reference geometry.
+
+```python
+from parampacmap import MMAEHybrid
+
+ae = MMAEHybrid(
+    input_dims=784,
+    bottleneck_dims=10,
+    ref_method="pca",       # or "paramrepulsor" for nonlinear reference
+    lambda_max=1.0,
+    num_epochs=300,
+    verbose=True,
+)
+ae.fit(X_train)
+Z = ae.encode(X_test)          # structure-preserving embeddings
+X_recon = ae.reconstruct(X_test)  # faithful reconstruction
+```
+
+Key features:
+- **Sparse O(bk) pair sampling** instead of MMAE's dense O(b^2) distance matrices
+- **Three-phase training schedule**: global layout → local refinement → reconstruction polish
+- **ParamRepulsor reference** for capturing nonlinear manifold geometry
+- **Faithful inversion** via decoder with topology-preserving regularization
+
+See `src/parampacmap/mmae_hybrid.py` for implementation and `peer_crystals/notes/hybrid_mmae_pacmap.md` for the full architecture plan.
+
 ## How to use our algorithm
 ParamPaCMAP/ParamRepulsor is fully scikit-learn compatible, meaning that it can be
 used as any other scikit-learn based algorithm.
@@ -77,6 +107,17 @@ If you have referred to our research in your publication, or you used the ParamR
   author={Huang, Haiyang and Wang, Yingfan and Rudin, Cynthia},
   booktitle={The Thirty-eighth Annual Conference on Neural Information Processing Systems},
   year={2024},
+}
+```
+
+If you use the MMAE-Hybrid autoencoder, please also cite:
+
+```
+@article{cheret2026manifold,
+  title={Manifold-Matching Autoencoders},
+  author={Cheret, Laurent and L{\'e}tourneau, Vincent and Nejadgholi, Isar and Drummond, Chris and Al Osman, Hussein and Fraser, Maia},
+  journal={arXiv preprint arXiv:2603.16568},
+  year={2026},
 }
 ```
 
